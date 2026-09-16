@@ -1,0 +1,7 @@
+node_modules
+.git
+playwright-out
+.playwright-mcp
+docs/*.mp4
+fixtures/apollo.raw.json
+.env

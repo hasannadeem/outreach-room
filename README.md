@@ -68,6 +68,21 @@ npm run record                                 # → playwright-out/walkthrough.
 VIDEO_PACE=1 npm run record                    # faster cut (~85s)
 ```
 
+## Or run the whole thing in Docker
+
+```bash
+docker compose up -d --build     # db + migrate + api + worker
+open http://localhost:3000
+```
+
+No credentials required: with no `APOLLO_API_KEY` the app replays `fixtures/apollo.json`,
+and the agent falls back to its deterministic drafting path with no `ANTHROPIC_API_KEY`.
+Both are passed through when set. Verified from cold: 10 prospects searched, enriched,
+drafted and sitting at `awaiting_review` **three seconds** after the room was created.
+
+`npm run db` still brings up Postgres alone for local development — the app services are
+only started by `docker compose up`.
+
 ## Prerequisites
 
 | Requirement | Notes |

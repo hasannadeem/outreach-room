@@ -2,32 +2,33 @@
   "name": "outreach-room",
   "type": "module",
   "scripts": {
-    "db": "docker compose up -d && tsx scripts/migrate.ts",
-    "demo": "tsx scripts/demo.ts",
-    "start": "tsx src/server.ts",
-    "worker": "tsx src/worker.ts",
-    "seed": "tsx scripts/seed.ts",
-    "linkedin": "tsx scripts/linkedin.ts",
-    "record": "tsx scripts/record-video.ts",
+    "db": "docker compose up -d db && node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
+    "docker": "docker compose up -d --build",
+    "demo": "node --env-file-if-exists=.env --import tsx scripts/demo.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
+    "worker": "node --env-file-if-exists=.env --import tsx src/worker.ts",
+    "seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
+    "linkedin": "node --env-file-if-exists=.env --import tsx scripts/linkedin.ts",
+    "record": "node --env-file-if-exists=.env --import tsx scripts/record-video.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
     "test": "vitest run",
-    "test:crash": "tsx scripts/test-crash.ts",
-    "test:race": "tsx scripts/test-race.ts",
-    "test:failures": "tsx scripts/test-failures.ts",
-    "test:chaos": "tsx scripts/test-chaos.ts",
-    "test:unit": "vitest run tests/prompt-injection.test.ts"
+    "test:unit": "vitest run tests/prompt-injection.test.ts",
+    "test:crash": "node --env-file-if-exists=.env --import tsx scripts/test-crash.ts",
+    "test:race": "node --env-file-if-exists=.env --import tsx scripts/test-race.ts",
+    "test:failures": "node --env-file-if-exists=.env --import tsx scripts/test-failures.ts",
+    "test:chaos": "node --env-file-if-exists=.env --import tsx scripts/test-chaos.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
     "express": "^4.22.3",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "tsx": "^4.23.13"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.3",
     "@types/pg": "^8.23.1",
     "playwright": "^1.49.1",
-    "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }

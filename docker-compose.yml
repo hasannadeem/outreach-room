@@ -1,3 +1,22 @@
+# Shared by api/worker/migrate: one image, one env block, one dependency rule.
+x-app: &app
+  build: .
+  image: outreach-room:local
+  environment:
+    # Inside the compose network the db is reachable by service name; host tooling keeps
+    # using localhost:55434 from .env.
+    - DATABASE_URL=postgres://postgres:postgres@db:5432/room
+    # Both optional: with no APOLLO_API_KEY the app replays fixtures/apollo.json, and the
+    # agent falls back to its deterministic path with no ANTHROPIC_API_KEY.
+    - APOLLO_API_KEY=${APOLLO_API_KEY:-}
+    - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    # Passed through only when set in the host env: src/apollo.ts treats *any* value here
+    # as "point at a real endpoint", so an empty string would break both fixtures and live.
+    - APOLLO_BASE_URL
+  depends_on:
+    db:
+      condition: service_healthy
+
 services:
   db:
     image: postgres:16-alpine
@@ -8,3 +27,28 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
+
+  # One-shot: applies schema.sql, then exits. api/worker wait for it to succeed.
+  migrate:
+    <<: *app
+    command: ["npx", "tsx", "scripts/migrate.ts"]
+    restart: "no"
+
+  api:
+    <<: *app
+    command: ["npx", "tsx", "src/server.ts"]
+    ports: ["3000:3000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["npx", "tsx", "src/worker.ts"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully

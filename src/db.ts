@@ -1,7 +1,12 @@
 import pg from 'pg';
 import type { QueryResult, QueryResultRow, PoolClient } from 'pg';
 
-export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 8 });
+// Defaults to the database docker-compose.yml brings up, so a fresh clone works before
+// anyone has written a .env. Inside the compose network the URL is supplied per service.
+const DATABASE_URL =
+  process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:55434/room';
+
+export const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 8 });
 
 /** Anything that can run a query: the pool itself, or a client inside a transaction. */
 export interface Queryable {
