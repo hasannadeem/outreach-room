@@ -126,6 +126,32 @@
   .ev b { color:var(--fg); font-weight:560; min-width:50px; }
   .ev .t { color:var(--faint); min-width:64px; }
 
+  /* ── modal ──────────────────────────────────────────────── */
+  #modal[hidden] { display:none; }
+  #modal { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:20px; }
+  #modal .scrim { position:absolute; inset:0; background:#0b0e14a8; backdrop-filter:blur(2px);
+                  animation:fade .15s ease; }
+  @keyframes fade { from { opacity:0 } }
+  @keyframes rise { from { opacity:0; transform:translateY(8px) scale(.98) } }
+  .dialog { position:relative; width:min(560px, 100%); background:var(--panel);
+            border:1px solid var(--line); border-radius:14px; box-shadow:0 24px 64px #0b0e1440;
+            padding:22px; animation:rise .18s cubic-bezier(.2,.8,.3,1); }
+  .dialog h2 { font-size:17px; font-weight:640; letter-spacing:-.015em; }
+  .dialog .desc { font-size:13.5px; color:var(--mut); margin-top:6px; }
+  .field { margin-top:16px; display:grid; gap:6px; }
+  .field label { font-size:12.5px; font-weight:580; color:var(--mut); }
+  .field .hint { font-size:12px; color:var(--faint); }
+  .field input, .field textarea {
+    font:inherit; font-size:14px; color:var(--fg); background:var(--bg);
+    border:1px solid var(--line); border-radius:9px; padding:9px 11px; width:100%;
+    resize:vertical; transition:border-color .13s, box-shadow .13s;
+  }
+  .field textarea { min-height:86px; line-height:1.5; }
+  .field input:focus, .field textarea:focus {
+    outline:none; border-color:var(--acc); box-shadow:0 0 0 3px var(--acc-soft);
+  }
+  .m-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+
   #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(8px);
            background:var(--bad); color:#fff; padding:10px 17px; border-radius:9px;
            font-size:13.5px; font-weight:520; box-shadow:0 8px 28px #0004;
@@ -156,6 +182,19 @@
   </details>
 </main>
 
+<div id="modal" hidden>
+  <div class="scrim" data-close></div>
+  <form class="dialog" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <h2 id="m-title"></h2>
+    <p class="desc" id="m-desc"></p>
+    <div id="m-fields"></div>
+    <div class="m-actions">
+      <button type="button" class="ghost" data-close>Cancel</button>
+      <button type="submit" class="primary" id="m-ok">Confirm</button>
+    </div>
+  </form>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -169,6 +208,63 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
   ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
 const initials = (n) =>
   String(n || '?').split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
+
+/**
+ * A real dialog rather than window.prompt: it takes several fields at once, allows a
+ * multi-line draft, and can be styled and tested. Resolves to the field values, or null
+ * if dismissed.
+ */
+let closeModal = null;
+
+function modal({ title, description = '', fields, confirm = 'Confirm' }) {
+  return new Promise((resolve) => {
+    const box = $('modal'), form = box.querySelector('.dialog');
+    $('m-title').textContent = title;
+    $('m-desc').textContent = description;
+    $('m-desc').hidden = !description;
+    $('m-ok').textContent = confirm;
+
+    $('m-fields').innerHTML = fields.map((f) => `
+      <div class="field">
+        <label for="f-${f.name}">${esc(f.label)}</label>
+        ${f.multiline
+          ? `<textarea id="f-${f.name}" name="${f.name}" rows="${f.rows || 3}">${esc(f.value ?? '')}</textarea>`
+          : `<input id="f-${f.name}" name="${f.name}" value="${esc(f.value ?? '')}" autocomplete="off">`}
+        ${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}
+      </div>`).join('');
+
+    box.hidden = false;
+    const first = form.querySelector('input, textarea');
+    if (first) { first.focus(); first.select?.(); }
+
+    const done = (value) => {
+      box.hidden = true;
+      form.onsubmit = null;
+      document.removeEventListener('keydown', onKey);
+      closeModal = null;
+      resolve(value);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') done(null);
+      // Enter submits from a single-line field; a textarea needs the modifier so newlines work.
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || e.target.tagName !== 'TEXTAREA')) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    };
+
+    closeModal = () => done(null);
+    document.addEventListener('keydown', onKey);
+    box.querySelectorAll('[data-close]').forEach((el) => { el.onclick = () => done(null); });
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const out = {};
+      for (const f of fields) out[f.name] = form.querySelector(`[name="${f.name}"]`).value.trim();
+      if (fields.some((f) => f.required !== false && !out[f.name])) return;
+      done(out);
+    };
+  });
+}
 
 function toast(msg) {
   const t = $('toast');
@@ -236,10 +332,8 @@ function render({ room, tasks, events, replay }) {
     let acts = '';
     if (t.state === 'awaiting_review') {
       acts = btn('Approve', 'approve', 'primary') + btn('Skip', 'skip') +
-        `<button data-action="edit" ${held ? 'disabled' : ''} onclick="
-          const d = this.closest('.task').querySelector('.draft');
-          const n = prompt('Edit the note before it is sent', d ? d.textContent.trim() : '');
-          if (n) act('${t.id}','edit',${v},n)">Edit</button>` +
+        `<button data-action="edit" ${held ? 'disabled' : ''}
+          onclick="editDraft('${t.id}', ${v})">Edit</button>` +
         btn('Hand back', 'handback', 'ghost');
     } else if (t.state !== 'done' && t.state !== 'failed') {
       acts = `<span class="working"><i class="spin"></i>agent working…</span>`;
@@ -278,17 +372,24 @@ function render({ room, tasks, events, replay }) {
 // here by design, so on a public demo this doubles as the reset: anyone can put it back to
 // a clean state rather than nobody being able to touch it.
 $('fresh').onclick = async () => {
-  const objective = prompt('What is this room trying to achieve?',
-    'Book 5 discovery calls with engineering leaders at AI infra startups');
-  if (!objective) return;
-
-  const icp = prompt(
-    lastReplay
-      ? 'Describe the people to target.\n\nNote: this deployment replays recorded Apollo data, '
-        + 'so the same 10 prospects come back whatever you type. Run it with an Apollo key for a real search.'
-      : 'Describe the people to target — plain English is fine.',
-    'VP of Engineering or CTO at US-based B2B software companies');
-  if (!icp) return;
+  const out = await modal({
+    title: 'Start a new room',
+    description: 'The agent searches Apollo for people matching the ICP, then drafts a note '
+      + 'for each one and waits for a human.',
+    confirm: 'Create room',
+    fields: [
+      { name: 'objective', label: 'Objective',
+        value: 'Book 5 discovery calls with engineering leaders at AI infra startups' },
+      { name: 'icp', label: 'Ideal customer profile', multiline: true, rows: 3,
+        value: 'VP of Engineering or CTO at US-based B2B software companies',
+        hint: lastReplay
+          ? 'This deployment replays recorded Apollo data, so the same 10 prospects come back '
+            + 'whatever you enter. Run it with an Apollo key for a live search.'
+          : 'Plain English is fine — it is parsed into Apollo search filters.' },
+    ],
+  });
+  if (!out) return;
+  const { objective, icp } = out;
 
   const r = await fetch('/api/rooms', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -299,7 +400,22 @@ $('fresh').onclick = async () => {
   location.search = `?room=${room.id}&user=${actor}`;
 };
 
+/** Edit the draft before it is sent. */
+async function editDraft(taskId, version) {
+  const card = document.querySelector(`[data-action="edit"][onclick*="${taskId}"]`)?.closest('.task');
+  const current = card?.querySelector('.draft')?.textContent.trim() ?? '';
+  const out = await modal({
+    title: 'Edit the note',
+    description: 'This is what gets sent. The edit is recorded against you in the activity log.',
+    confirm: 'Save and approve',
+    fields: [{ name: 'note', label: 'Outreach note', multiline: true, rows: 4, value: current }],
+  });
+  if (out) act(taskId, 'edit', version, out.note);
+}
+
 async function refresh() {
+  // Re-rendering underneath an open dialog would swap the card out from under it.
+  if (closeModal) return;
   if (!roomId) {
     const rooms = await (await fetch('/api/rooms')).json();
     if (!rooms.length) { $('obj').textContent = 'No rooms yet — run: npm run seed'; return; }

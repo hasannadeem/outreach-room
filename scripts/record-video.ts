@@ -185,10 +185,14 @@ await beat(1500);
 await run(() => stage.callout('alice <b>approved</b> the second note — decision recorded in Postgres.'));
 await beat(3500);
 
-page.once('dialog', async (d) => {
-  await d.accept("Ludovic, your work on digital transformation at Groupe Nice-Matin stood out.\nWe help AI infra teams book discovery calls — worth 15 minutes?");
-});
+// Editing is an in-page dialog now, not window.prompt: open it, type, confirm.
 await click(alice, '#tasks .task:nth-child(3) [data-action="edit"]');
+await beat(900);
+await alice.locator('#modal textarea').fill(
+  'Renee, your note about still reading the diffs is the reason I am writing.\n'
+  + 'We help engineering leaders book discovery calls without the spray-and-pray. Worth 15 minutes?');
+await beat(1100);
+await click(alice, '#m-ok');
 await expectEvent('alice', 'edit');
 await beat(1800);
 await run(() => stage.callout(
