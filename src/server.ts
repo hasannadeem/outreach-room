@@ -24,6 +24,24 @@ const param = (req: Request, name: string): string => {
 
 const actorOf = (req: Request): string => (req.body?.actor || req.query.actor || 'anonymous').toString().slice(0, 40);
 
+/** A room and its roster are created together or not at all. */
+async function createRoom(objective: string, icp: string, members: string[]): Promise<Room> {
+  return tx(async (c) => {
+    const { rows: [room] } = await c.query<Room>(
+      'insert into rooms (objective, icp) values ($1,$2) returning *',
+      [objective.trim(), icp.trim()]);
+    if (!room) throw new Error('room insert returned no row');
+    // A room with an objective but no members is not a state this system should ever be in,
+    // so the roster is written in the same transaction.
+    for (const name of members)
+      await c.query(`insert into room_members (room_id, name, kind) values ($1,$2,'human')`,
+        [room.id, name]);
+    await c.query(`insert into room_members (room_id, name, kind) values ($1,'agent','agent')`,
+      [room.id]);
+    return room;
+  });
+}
+
 app.post('/api/rooms', async (req: Request, res: Response) => {
   const { objective, icp, members = ['alice', 'bob'] } = req.body;
   if (!objective?.trim() || !icp?.trim())
@@ -37,21 +55,7 @@ app.post('/api/rooms', async (req: Request, res: Response) => {
   if (!roster.length)
     return res.status(400).json({ error: 'members must be a non-empty array of names' });
 
-  const room = await tx(async (c) => {
-    const { rows: [room] } = await c.query<Room>(
-      'insert into rooms (objective, icp) values ($1,$2) returning *',
-      [objective.trim(), icp.trim()]);
-    if (!room) throw new Error('room insert returned no row');
-    // The roster is part of creating a room, in the same transaction: a room with an
-    // objective but no members is not a state this system should ever be in.
-    for (const name of roster)
-      await c.query(`insert into room_members (room_id, name, kind) values ($1,$2,'human')`,
-        [room.id, name]);
-    await c.query(`insert into room_members (room_id, name, kind) values ($1,'agent','agent')`,
-      [room.id]);
-    return room;
-  });
-  res.status(201).json(room);
+  res.status(201).json(await createRoom(objective, icp, roster));
 });
 
 /** Is this actor a human member of this room? The trust boundary for every human action. */
@@ -182,5 +186,46 @@ app.post('/api/tasks/:id/:action', async (req: Request, res: Response) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () =>
-  console.log(`[api] http://localhost:${process.env.PORT || 3000}`));
+/**
+ * Seed a room if the deployment has none, so a public demo is never an empty page.
+ * Safe to call repeatedly: it only acts when there is nothing to look at.
+ */
+const DEMO_OBJECTIVE = 'Book 5 discovery calls with engineering leaders at AI infra startups';
+const DEMO_ICP = 'VP of Engineering or CTO at US-based B2B software companies';
+
+async function ensureDemoRoom(): Promise<void> {
+  const { rows } = await q<{ n: string }>(`select count(*) as n from rooms`);
+  if (Number(rows[0]?.n ?? 0) > 0) return;
+  await createRoom(DEMO_OBJECTIVE, DEMO_ICP, ['alice', 'bob']);
+  console.log('[api] seeded a demo room');
+}
+
+// Anyone can reset the demo. There is no auth here by design (see the README), so the
+// honest defence for a public deployment is that any visitor can put it back to a clean
+// state rather than that nobody can touch it.
+app.post('/api/demo/reset', async (_req: Request, res: Response) => {
+  const room = await createRoom(DEMO_OBJECTIVE, DEMO_ICP, ['alice', 'bob']);
+  res.status(201).json(room);
+});
+
+const PORT = Number(process.env.PORT || 3000);
+app.listen(PORT, async () => {
+  console.log(`[api] http://localhost:${PORT}`);
+
+  // A single-dyno deployment has nowhere else to run migrations. Non-destructive: it
+  // creates the schema when it is missing and does nothing otherwise.
+  if (process.env.MIGRATE_ON_BOOT === '1') {
+    const { applySchema, waitForPostgres } = await import('./schema.ts');
+    await waitForPostgres();
+    console.log(`[api] schema ${await applySchema({ force: false })}`);
+  }
+  if (process.env.DEMO_SEED === '1') await ensureDemoRoom().catch((e) => console.error(e));
+
+  // Free hosting tiers give you one always-on process, not two. The worker keeps no state
+  // in memory, so running its loop here is a deployment choice rather than a design change
+  // — the same tick() also runs as its own container, or as four of them.
+  if (process.env.WORKER_IN_PROCESS === '1') {
+    const { runForever } = await import('./worker.ts');
+    void runForever().catch((e) => console.error('[agent] stopped:', e));
+  }
+});

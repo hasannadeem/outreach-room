@@ -1,0 +1,35 @@
+# Free-tier deployment: one web service running the API with the agent loop in-process,
+# plus a managed Postgres. Deploy by connecting this repo as a Blueprint on render.com —
+# no CLI, no card, no credentials.
+#
+# There are deliberately no API keys here. With no APOLLO_API_KEY the app replays
+# fixtures/apollo.json, so the public demo costs nothing to run and behaves identically
+# every time. Add the keys as environment variables in the dashboard to run it live.
+services:
+  - type: web
+    name: outreach-room
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/rooms
+    envVars:
+      # Free plans give you one always-on process, not two. The worker keeps no state in
+      # memory, so its loop runs here; the same tick() also runs as its own container.
+      - key: WORKER_IN_PROCESS
+        value: "1"
+      # Nowhere else to run migrations on a single dyno. Non-destructive.
+      - key: MIGRATE_ON_BOOT
+        value: "1"
+      # A public demo should never be an empty page.
+      - key: DEMO_SEED
+        value: "1"
+      # Free Postgres caps connections hard.
+      - key: PG_POOL_MAX
+        value: "3"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: outreach-room-db
+          property: connectionString
+
+databases:
+  - name: outreach-room-db
+    plan: free

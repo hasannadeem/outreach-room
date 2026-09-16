@@ -44,7 +44,13 @@ beforeAll(async () => {
     if (up) return;
     await new Promise((r) => setTimeout(r, 250));
   }
-  throw new Error(`API never came up on :${PORT}`);
+  // Distinguish the two ways this fails: the API not starting, and the API starting
+  // fine against a database that is not there.
+  const dbUp = await fetch(`http://localhost:${PORT}/api/rooms`)
+    .then((r) => r.status).catch(() => 0);
+  throw new Error(dbUp === 0
+    ? `API never came up on :${PORT}`
+    : `API is up on :${PORT} but returned ${dbUp} — is Postgres running? (npm run db)`);
 });
 
 afterAll(() => { api?.kill('SIGTERM'); });

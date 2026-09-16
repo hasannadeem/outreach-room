@@ -6,7 +6,15 @@ import type { QueryResult, QueryResultRow, PoolClient } from 'pg';
 const DATABASE_URL =
   process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:55434/room';
 
-export const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 8 });
+// Free Postgres tiers cap connections hard, and one web dyno running the worker in-process
+// needs far fewer than a fleet of workers does.
+const POOL_MAX = Number(process.env.PG_POOL_MAX ?? 8);
+
+export const pool = new pg.Pool({
+  connectionString: DATABASE_URL,
+  max: POOL_MAX,
+  ...(DATABASE_URL.includes('sslmode=require') ? { ssl: { rejectUnauthorized: false } } : {}),
+});
 
 /** Anything that can run a query: the pool itself, or a client inside a transaction. */
 export interface Queryable {

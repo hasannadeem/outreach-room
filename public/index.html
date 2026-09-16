@@ -38,6 +38,7 @@
   <span class="who" id="who"></span>
   <span class="mut" id="status"></span>
   <span style="flex:1"></span>
+  <button id="fresh">New room</button>
   <button id="pause"></button>
 </header>
 <div id="tasks"></div>
@@ -139,6 +140,15 @@ async function refresh() {
   const r = await fetch(`/api/rooms/${roomId}`);
   if (r.ok) render(await r.json());
 }
+// There is no auth here by design, so on a public demo the honest defence is that anyone
+// can put it back to a clean state rather than that nobody can touch it.
+document.getElementById('fresh').onclick = async () => {
+  const r = await fetch('/api/demo/reset', { method: 'POST' });
+  if (!r.ok) return toast('could not start a new room');
+  const room = await r.json();
+  location.search = `?room=${room.id}&user=${actor}`;
+};
+
 refresh();
 setInterval(refresh, 1000);
 </script>

@@ -1,16 +1,15 @@
-/** Apply schema.sql. Waits for Postgres to accept connections first. */
-import { readFileSync } from 'node:fs';
+/**
+ * Apply schema.sql.
+ *
+ *   tsx scripts/migrate.ts              drop and recreate (development reset)
+ *   tsx scripts/migrate.ts --if-needed  create only when missing (safe on a server)
+ */
 import { pool } from '../src/db.ts';
+import { applySchema, waitForPostgres } from '../src/schema.ts';
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-for (let i = 1; ; i++) {
-  try { await pool.query('select 1'); break; } catch (e) {
-    if (i >= 20) throw new Error(`Postgres not reachable: ${(e as Error).message}`);
-    if (i === 1) process.stdout.write('waiting for postgres');
-    process.stdout.write('.');
-    await sleep(1000);
-  }
-}
-await pool.query(readFileSync('schema.sql', 'utf8'));
+const ifNeeded = process.argv.includes('--if-needed');
+
+await waitForPostgres();
+const result = await applySchema({ force: !ifNeeded });
 await pool.end();
-console.log('\nschema applied');
+console.log(`\nschema ${result}`);

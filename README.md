@@ -83,6 +83,39 @@ drafted and sitting at `awaiting_review` **three seconds** after the room was cr
 `npm run db` still brings up Postgres alone for local development — the app services are
 only started by `docker compose up`.
 
+## Deploying it free
+
+`render.yaml` is a Blueprint: on [render.com](https://render.com) choose **New → Blueprint**,
+point it at this repo, and it provisions a free web service plus a free Postgres. No CLI, no
+card, no credentials — with no `APOLLO_API_KEY` the demo replays fixtures, so it costs
+nothing to run and looks the same every time.
+
+Three environment variables make a single free dyno behave like the full stack:
+
+| | |
+|---|---|
+| `WORKER_IN_PROCESS=1` | runs the agent loop inside the web process |
+| `MIGRATE_ON_BOOT=1` | creates the schema if it is missing (never drops) |
+| `DEMO_SEED=1` | seeds a room so the demo is never an empty page |
+
+The first of those is the point worth making: the worker keeps no state in memory and the
+queue lives in Postgres, so **what drives it is a deployment decision, not a design change**.
+The same `tick()` runs in a `while` loop, in its own container, in four containers at once,
+or once per HTTP request on a platform with no always-on process. Nothing about the
+guarantees changes — they live in the database, not the process.
+
+Two things to know before pointing anyone at a public URL:
+
+- **There is no auth** — `?user=alice` means anyone can be anyone. That was the brief, but a
+  public deployment inherits it, so any visitor can approve or pause. The mitigation is the
+  **New room** button: rather than pretending nobody can touch it, anyone can put it back to
+  a clean state.
+- **Free web services sleep.** The first request after idle takes ~30s to wake.
+
+Vercel can host the API but not the agent: a polling loop needs an always-on process, and
+free-tier cron fires once a day. `tick()` is exported precisely so it could be driven per
+request instead — but Render maps to the real architecture without the adapter.
+
 ## Prerequisites
 
 | Requirement | Notes |

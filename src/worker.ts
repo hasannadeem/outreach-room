@@ -162,14 +162,34 @@ async function runTask(): Promise<boolean> {
   }
 }
 
-let running = true;
-for (const sig of ['SIGINT', 'SIGTERM'])
-  process.on(sig, () => { running = false; console.log('\n[agent] finishing current step...'); });
-
-console.log('[agent] worker up');
-while (running) {
-  const worked = (await runSearch()) || (await runTask());
-  if (!worked) await sleep(IDLE_MS);
+/**
+ * One unit of agent work: advance a room's search, or one step of one task.
+ *
+ * The loop below is only a driver. Because the worker keeps no state in memory and the
+ * queue lives in Postgres, it does not matter what calls this — a `while` loop in a
+ * long-running container, several containers at once, or a single HTTP request on a
+ * platform that has no always-on process. `tick()` is the whole worker; everything else
+ * is scheduling.
+ */
+export async function tick(): Promise<boolean> {
+  return (await runSearch()) || (await runTask());
 }
-await pool.end();
-console.log('[agent] stopped cleanly');
+
+/** Run until stopped. Used by the standalone worker process and by in-process mode. */
+export async function runForever(): Promise<void> {
+  let running = true;
+  for (const sig of ['SIGINT', 'SIGTERM'] as const)
+    process.on(sig, () => { running = false; console.log('\n[agent] finishing current step...'); });
+
+  console.log('[agent] worker up');
+  while (running) {
+    if (!(await tick())) await sleep(IDLE_MS);
+  }
+}
+
+// Only take over the process when run directly (`tsx src/worker.ts`), not when imported.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  await runForever();
+  await pool.end();
+  console.log('[agent] stopped cleanly');
+}
