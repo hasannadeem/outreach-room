@@ -1,0 +1,144 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Outreach Room</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --mut:#666; --line:#e3e3e3; --card:#fafafa; --acc:#2563eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#151515; --fg:#eee; --mut:#999; --line:#2e2e2e; --card:#1d1d1d; --acc:#6ea8fe; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+         font:14px/1.5 ui-sans-serif,system-ui,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline;
+           border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
+  h1 { font-size:17px; margin:0; }
+  .who { background:var(--acc); color:#fff; padding:2px 9px; border-radius:99px; font-size:12px; }
+  .mut { color:var(--mut); font-size:12px; }
+  .task { border:1px solid var(--line); background:var(--card); border-radius:8px;
+          padding:11px 13px; margin-bottom:9px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .state { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px;
+           border-radius:4px; border:1px solid var(--line); }
+  .awaiting_review { border-color:var(--acc); color:var(--acc); }
+  .done { opacity:.55; } .failed { border-color:#dc2626; color:#dc2626; }
+  .draft { white-space:pre-wrap; margin:8px 0; padding:8px 10px; border-left:2px solid var(--acc);
+           background:var(--bg); border-radius:0 4px 4px 0; }
+  button { font:inherit; padding:4px 11px; border:1px solid var(--line); border-radius:5px;
+           background:var(--bg); color:var(--fg); cursor:pointer; }
+  button:hover { border-color:var(--acc); } button:disabled { opacity:.4; cursor:default; }
+  .primary { background:var(--acc); color:#fff; border-color:var(--acc); }
+  #log { margin-top:22px; border-top:1px solid var(--line); padding-top:10px; }
+  #log div { font-size:12px; color:var(--mut); font-family:ui-monospace,monospace; }
+  #toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#dc2626;
+           color:#fff; padding:8px 15px; border-radius:6px; font-size:13px; display:none; }
+</style>
+
+<header>
+  <h1 id="obj">loading…</h1>
+  <span class="who" id="who"></span>
+  <span class="mut" id="status"></span>
+  <span style="flex:1"></span>
+  <button id="pause"></button>
+</header>
+<div id="tasks"></div>
+<div id="log"></div>
+<div id="toast"></div>
+
+<script>
+const qs    = new URLSearchParams(location.search);
+const actor = qs.get('user') || 'alice';
+let roomId  = qs.get('room');
+document.getElementById('who').textContent = actor;
+
+const toast = (m) => {
+  const t = document.getElementById('toast');
+  t.textContent = m; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 3500);
+};
+
+async function act(taskId, action, version, note) {
+  const r = await fetch(`/api/tasks/${taskId}/${action}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ actor, version, note }),
+  });
+  // 409 is the expected outcome when the other human won, not an error to hide.
+  if (!r.ok) toast((await r.json()).error);
+  refresh();
+}
+
+function render({ room, tasks, events }) {
+  document.getElementById('obj').textContent = room.objective;
+  const done = tasks.filter((t) => t.state === 'done').length;
+  const roster = (room.members ?? []).map((m) =>
+    m.kind === 'agent' ? '🤖 agent' : (m.name === actor ? `${m.name} (you)` : m.name)).join(' · ');
+  document.getElementById('status').textContent =
+    `${done}/${tasks.length} decided · room ${room.status} · ${roster}` +
+    (room.last_error ? ` · ${room.last_error}` : '');
+
+  const pause = document.getElementById('pause');
+  pause.textContent = room.status === 'running' ? 'Pause room' : 'Resume room';
+  pause.onclick = async () => {
+    await fetch(`/api/rooms/${room.id}/pause`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ paused: room.status === 'running', actor }),
+    });
+    refresh();
+  };
+
+  document.getElementById('tasks').innerHTML = tasks.map((t) => {
+    const p = t.enrichment || {};
+    const name = p.name || t.person?.first_name || t.person_key;
+    const org  = p.organization?.name || t.person?.organization?.name || '';
+    const mine = t.claimed_by === actor;
+    const held = t.claimed_by && !mine;
+    const v    = t.version;
+
+    const btn = (label, action, cls = '') =>
+      `<button class="${cls}" ${held ? 'disabled' : ''}
+        onclick="act('${t.id}','${action}',${v})">${label}</button>`;
+
+    let controls = '';
+    if (t.state === 'awaiting_review') {
+      controls = btn('Approve', 'approve', 'primary') + btn('Skip', 'skip') +
+        `<button ${held ? 'disabled' : ''} onclick="
+           const n = prompt('Edit the note', this.closest('.task').querySelector('.draft').textContent.trim());
+           if (n) act('${t.id}','edit',${v},n)">Edit</button>` +
+        btn('Hand back to agent', 'handback');
+    } else if (t.state !== 'done' && t.state !== 'failed') {
+      controls = `<span class="mut">agent working…</span>`;
+    }
+    if (t.state !== 'done' && t.state !== 'failed')
+      controls += mine ? btn('Release', 'release') : btn('Claim', 'claim');
+
+    return `<div class="task ${t.state}">
+      <div class="row">
+        <strong>${name}</strong><span class="mut">${p.title || ''} ${org ? '· ' + org : ''}</span>
+        <span style="flex:1"></span>
+        <span class="state ${t.state}">${t.decision || t.state.replace(/_/g, ' ')}</span>
+      </div>
+      ${p.headline ? `<div class="mut">${p.headline.slice(0, 150)}</div>` : ''}
+      ${t.linkedin_headline ? `<div class="mut">LinkedIn: ${t.linkedin_headline}</div>` : ''}
+      ${t.draft ? `<div class="draft">${t.draft}</div>` : ''}
+      ${t.last_error ? `<div class="mut">⚠ ${t.last_error} (attempt ${t.attempts})</div>` : ''}
+      <div class="row">${controls}
+        ${t.claimed_by ? `<span class="mut">held by ${t.claimed_by}</span>` : ''}</div>
+    </div>`;
+  }).join('') || '<p class="mut">agent is searching Apollo…</p>';
+
+  document.getElementById('log').innerHTML = events.map((e) =>
+    `<div>${new Date(e.created_at).toLocaleTimeString()} · ${e.actor} · ${e.type}
+     ${e.data?.error ? '· ' + e.data.error : ''}</div>`).join('');
+}
+
+async function refresh() {
+  if (!roomId) {
+    const rooms = await (await fetch('/api/rooms')).json();
+    if (!rooms.length) return (document.getElementById('obj').textContent = 'no rooms — run: npm run seed');
+    roomId = rooms[0].id;
+  }
+  const r = await fetch(`/api/rooms/${roomId}`);
+  if (r.ok) render(await r.json());
+}
+refresh();
+setInterval(refresh, 1000);
+</script>
