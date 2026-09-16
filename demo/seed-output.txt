@@ -1,0 +1,3 @@
+room 3d4e6c01-75b7-48c6-9192-22b03889eeb1
+  alice: http://localhost:3000/?room=3d4e6c01-75b7-48c6-9192-22b03889eeb1&user=alice
+  bob:   http://localhost:3000/?room=3d4e6c01-75b7-48c6-9192-22b03889eeb1&user=bob

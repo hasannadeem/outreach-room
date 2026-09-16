@@ -1,0 +1,86 @@
+
+[1mOutreach Room — proving the brief[0m
+[2mno APOLLO_API_KEY — replaying recorded fixtures[0m
+
+[1m────────────────────────────────────────────────────────────────────────[0m
+[1m  Kill the process mid-run, restart, it picks up where it was.
+      Nothing gets enriched or drafted twice.[0m
+[1m────────────────────────────────────────────────────────────────────────[0m
+--- reset ---
+--- start worker, kill -9 mid-run ---
+[apollo] no APOLLO_API_KEY — replaying recorded fixtures (set one for live data)
+[agent] worker up
+[agent] searched: 10 people (icp via fallback (Could not resolve authentication method. Expected one of apiKey, authToken, cred))
+[agent] enriched Dana Whitfield
+[agent] enriched Marcus Oyelaran
+[agent] enriched Priya Raghunath
+killed with 3 step(s) committed across 10 task(s)
+--- restart, run to completion ---
+[apollo] no APOLLO_API_KEY — replaying recorded fixtures (set one for live data)
+[agent] worker up
+[agent] enriched Tomas Berg
+[agent] enriched Renée Castellan
+[agent] enriched Ibrahim Sallah
+[agent] enriched Wen Zhao
+[agent] drafted for Marcus Oyelaran
+[agent] drafted for Tomas Berg
+[agent] drafted for Ibrahim Sallah
+[agent] drafted for Wen Zhao
+[agent] enriched Aoife Doherty
+[agent] enriched Samuel Adeyemi
+[agent] enriched Elena Vasquez
+[agent] drafted for Dana Whitfield
+[agent] drafted for Priya Raghunath
+[agent] drafted for Renée Castellan
+[agent] drafted for Aoife Doherty
+[agent] drafted for Samuel Adeyemi
+[agent] drafted for Elena Vasquez
+
+[agent] finishing current step...
+
+PASS  3 step(s) survived the kill unchanged, 17 more ran after restart, 0 duplicates, 10/10 tasks awaiting review
+[agent] stopped cleanly
+
+[1m────────────────────────────────────────────────────────────────────────[0m
+[1m  Two humans acting on the same task at once can't both win.[0m
+[1m────────────────────────────────────────────────────────────────────────[0m
+PASS  concurrent approve: one 200, one 409 ("someone else acted on this first")
+PASS  concurrent claim: bob holds it, the other got 409
+PASS  claimed task: bob 409 ("task is awaiting_review, held by alice"), alice 200
+PASS  stale version rejected ("someone else acted on this first")
+PASS  handback returns the task to the agent and clears the draft step
+PASS  release drops the claim, keeps the draft (handback is what discards it)
+PASS  non-member gets 403; the roster FK blocks it at the database too
+
+all race checks passed
+
+[1m────────────────────────────────────────────────────────────────────────[0m
+[1m  Apollo rate limits and failures are handled without losing the run.[0m
+[1m────────────────────────────────────────────────────────────────────────[0m
+PASS  429: task held at pending_enrich, retry in 1.9s (Retry-After honoured)
+PASS  recovery: the same task completed after the limit cleared — run never lost
+PASS  422: failed after 1 attempt, not 5 ("422: {"error":"permanently bad record"}…")
+
+all failure checks passed (4 stubbed Apollo calls)
+
+[1m────────────────────────────────────────────────────────────────────────[0m
+[1m  The same guarantees under repeated kills, 4 concurrent workers,
+      and a human racing the agent mid-step.[0m
+[1m────────────────────────────────────────────────────────────────────────[0m
+PASS  survived 7 × kill -9 at random moments — 10/10 tasks enriched once and drafted once
+PASS  4 workers racing on one room — 10/10 tasks processed exactly once (FOR UPDATE SKIP LOCKED)
+PASS  human claimed a task mid-step — claim held, state coherent (enriched), no torn write
+PASS  expired claim reaped by the agent; a live claim left alone
+
+all chaos checks passed
+
+[1m────────────────────────────────────────────────────────────────────────[0m
+  [32mPASS[0m  Kill the process mid-run, restart, it picks up where it was.
+  [32mPASS[0m  Two humans acting on the same task at once can't both win.
+  [32mPASS[0m  Apollo rate limits and failures are handled without losing the run.
+  [32mPASS[0m  The same guarantees under repeated kills, 4 concurrent workers,
+  [32mPASS[0m  Pause stops the room[2m  (one WHERE clause; see npm start + the Pause button)[0m
+[1m────────────────────────────────────────────────────────────────────────[0m
+[32m
+All four requirements demonstrated. `npm start` + `npm run seed` for the room itself.
+[0m

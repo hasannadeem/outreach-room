@@ -1,0 +1,3 @@
+$ npm run linkedin
+opening https://www.linkedin.com/in/[redacted]
+headline: "[redacted]"

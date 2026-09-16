@@ -1,0 +1,200 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Outreach Room — walkthrough</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1280px; height: 720px; overflow: hidden; background: #0d1117; color: #e6edf3;
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column;
+  }
+
+  /* ── annotation bar ─────────────────────────────────────────── */
+  #bar {
+    padding: 14px 26px; border-bottom: 1px solid #21262d; background: #010409;
+    display: flex; align-items: baseline; gap: 14px; flex: 0 0 auto; min-height: 62px;
+  }
+  #step {
+    font: 600 11px ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase;
+    color: #0d1117; background: #58a6ff; padding: 3px 9px; border-radius: 4px; flex: 0 0 auto;
+  }
+  #title { font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+  #note  { font-size: 14px; color: #8b949e; }
+
+  /* ── stage ──────────────────────────────────────────────────── */
+  #stage { flex: 1; position: relative; overflow: hidden; }
+  .pane {
+    position: absolute; inset: 0; opacity: 0; transition: opacity .35s ease;
+    pointer-events: none;
+  }
+  .pane.on { opacity: 1; }
+
+  /* terminal */
+  #term {
+    padding: 20px 26px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    white-space: pre-wrap; overflow: hidden; color: #c9d1d9;
+  }
+  #term .cmd  { color: #7ee787; font-weight: 600; }
+  #term .pass { color: #3fb950; }
+  #term .hdr  { color: #d29922; }
+  #term .dim  { color: #6e7681; }
+  #term .hl   { background: #1f6feb33; border-left: 2px solid #58a6ff; padding-left: 8px;
+                display: block; margin: 1px -8px 1px 0; }
+  #cursor { display: inline-block; width: 8px; height: 15px; background: #58a6ff;
+            vertical-align: -3px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* two browsers */
+  #browsers { display: flex; gap: 12px; padding: 12px; height: 100%; }
+  .win { flex: 1; display: flex; flex-direction: column; border: 1px solid #30363d;
+         border-radius: 8px; overflow: hidden; background: #fff; }
+  .chrome { flex: 0 0 auto; background: #21262d; padding: 6px 10px; display: flex;
+            align-items: center; gap: 7px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #484f58; }
+  .chrome span { font: 600 11px ui-monospace, monospace; color: #e6edf3; margin-left: 4px; }
+  .win iframe { flex: 1; border: 0; width: 100%; background: #fff; }
+
+  /* callout */
+  #callout {
+    position: absolute; right: 26px; bottom: 22px; max-width: 430px;
+    background: #161b22; border: 1px solid #30363d; border-left: 3px solid #58a6ff;
+    border-radius: 7px; padding: 12px 16px; font-size: 14px; color: #e6edf3;
+    opacity: 0; transition: opacity .3s ease; box-shadow: 0 12px 34px #0009;
+  }
+  #callout.on { opacity: 1; }
+  #callout b { color: #58a6ff; }
+
+  /* Always-animating progress strip. Doubles as a real progress indicator and as a
+     guarantee that the page repaints continuously — Playwright's screencast only emits
+     frames on repaint, so a fully static scene would otherwise be dropped from the video. */
+  #prog { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%;
+          background: #21262d; z-index: 5; }
+  #prog i { display: block; height: 100%; width: 0%; background: #58a6ff; }
+  #rec { position: absolute; left: 22px; bottom: 16px; z-index: 6; display: flex;
+         align-items: center; gap: 7px; font: 600 11px ui-monospace, monospace; color: #8b949e; }
+  #rec b { width: 8px; height: 8px; border-radius: 50%; background: #f85149;
+           animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+
+  /* title card */
+  #card {
+    position: absolute; inset: 0; background: #0d1117; display: flex; align-items: center;
+    justify-content: center; flex-direction: column; gap: 16px; text-align: center;
+    opacity: 0; transition: opacity .4s ease; pointer-events: none;
+  }
+  #card.on { opacity: 1; }
+  #card h1 { font-size: 40px; letter-spacing: -.025em; font-weight: 680; }
+  #card p  { font-size: 18px; color: #8b949e; max-width: 720px; }
+  #card .kbd { font: 15px ui-monospace, monospace; background: #161b22; border: 1px solid #30363d;
+               padding: 8px 16px; border-radius: 6px; color: #7ee787; }
+</style>
+
+<div id="bar">
+  <span id="step">01</span>
+  <span id="title"></span>
+  <span id="note"></span>
+</div>
+
+<div id="stage">
+  <div class="pane" id="p-term"><div id="term"></div></div>
+
+  <div class="pane" id="p-browsers">
+    <div id="browsers">
+      <div class="win">
+        <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>alice</span></div>
+        <iframe id="fa"></iframe>
+      </div>
+      <div class="win">
+        <div class="chrome"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span>bob</span></div>
+        <iframe id="fb"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div id="prog"><i></i></div>
+  <div id="rec"><b></b><span id="clock">0:00</span></div>
+  <div id="callout"></div>
+  <div id="card"><h1></h1><p></p><div class="kbd"></div></div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Colourise a captured terminal line. Purely presentational — the text is real output. */
+function paint(line) {
+  const esc = line.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  if (/^\$ /.test(esc))            return `<span class="cmd">${esc}</span>`;
+  if (/^PASS/.test(esc))           return `<span class="pass">${esc}</span>`;
+  if (/^\s+PASS/.test(esc))        return `<span class="pass">${esc}</span>`;
+  if (/^─+$/.test(esc))            return `<span class="dim">${esc}</span>`;
+  if (/^ {2}[A-Z]/.test(esc))      return `<span class="hdr">${esc}</span>`;
+  if (/^\[(agent|apollo)\]/.test(esc)) return `<span class="dim">${esc}</span>`;
+  return esc;
+}
+
+const api = {
+  /** Header text above the stage. */
+  bar(step, title, note = '') {
+    $('#step').textContent = step;
+    $('#title').textContent = title;
+    $('#note').textContent = note;
+  },
+  /** Full-screen title card. */
+  async card(h1, p = '', kbd = '') {
+    $('#card h1').textContent = h1;
+    $('#card p').textContent = p;
+    $('#card .kbd').textContent = kbd;
+    $('#card .kbd').style.display = kbd ? '' : 'none';
+    $('#card').classList.add('on');
+  },
+  hideCard() { $('#card').classList.remove('on'); },
+
+  pane(which) {
+    for (const p of document.querySelectorAll('.pane')) p.classList.remove('on');
+    if (which) $(`#p-${which}`).classList.add('on');
+  },
+
+  callout(html) {
+    if (!html) return $('#callout').classList.remove('on');
+    $('#callout').innerHTML = html;
+    $('#callout').classList.add('on');
+  },
+
+  clearTerm() { $('#term').innerHTML = ''; },
+
+  /** Print captured lines with a typing cadence. */
+  async type(lines, { perLine = 55, highlight = [] } = {}) {
+    const t = $('#term');
+    for (const line of lines) {
+      const hl = highlight.some((h) => line.includes(h));
+      t.insertAdjacentHTML('beforeend',
+        `<span class="${hl ? 'hl' : ''}">${paint(line)}</span>\n`);
+      // keep the newest output on screen
+      while (t.scrollHeight > t.clientHeight && t.firstChild) t.removeChild(t.firstChild);
+      await sleep(line.trim() === '' ? 12 : perLine);
+    }
+  },
+
+  loadRooms(url) { $('#fa').src = url + '&user=alice'; $('#fb').src = url + '&user=bob'; },
+};
+/**
+ * Drive the strip on requestAnimationFrame, not a timer. Playwright's screencast emits a
+ * frame per repaint, so a page that repaints 4x a second yields a 4fps video that ffmpeg
+ * then replays at 25fps — the whole timeline collapses. Animating every frame keeps
+ * captured and played-back time in step.
+ */
+const T0 = performance.now();
+const TOTAL_MS = 175_000;
+const bar = document.querySelector('#prog i');
+const clock = document.querySelector('#clock');
+(function tick(now) {
+  const el = now - T0;
+  bar.style.width = `${Math.min(100, (el / TOTAL_MS) * 100).toFixed(3)}%`;
+  clock.textContent =
+    `${Math.floor(el / 60000)}:${String(Math.floor(el / 1000) % 60).padStart(2, '0')}`;
+  requestAnimationFrame(tick);
+})(performance.now());
+
+window.stage = api;
+</script>
