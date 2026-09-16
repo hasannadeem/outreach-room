@@ -1,82 +1,217 @@
 <!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Outreach Room</title>
 <style>
-  :root { --bg:#fff; --fg:#111; --mut:#666; --line:#e3e3e3; --card:#fafafa; --acc:#2563eb; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#151515; --fg:#eee; --mut:#999; --line:#2e2e2e; --card:#1d1d1d; --acc:#6ea8fe; }
+  :root {
+    --bg:#f6f7f9; --panel:#fff; --fg:#14161a; --mut:#666d78; --faint:#8b929c;
+    --line:#e4e7ec; --line-2:#eef0f3;
+    --acc:#3b5bfd; --acc-fg:#fff; --acc-soft:#eef1ff;
+    --ok:#12805c; --ok-soft:#e6f5ef;
+    --warn:#9a6400; --warn-soft:#fdf3e2;
+    --bad:#c2372b; --bad-soft:#fdecea;
+    --shadow:0 1px 2px #0b0e1408, 0 4px 14px #0b0e140a;
   }
-  * { box-sizing: border-box; }
-  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
-         font:14px/1.5 ui-sans-serif,system-ui,sans-serif; }
-  header { display:flex; flex-wrap:wrap; gap:8px; align-items:baseline;
-           border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px; }
-  h1 { font-size:17px; margin:0; }
-  .who { background:var(--acc); color:#fff; padding:2px 9px; border-radius:99px; font-size:12px; }
-  .mut { color:var(--mut); font-size:12px; }
-  .task { border:1px solid var(--line); background:var(--card); border-radius:8px;
-          padding:11px 13px; margin-bottom:9px; }
-  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .state { font-size:11px; text-transform:uppercase; letter-spacing:.04em; padding:2px 7px;
-           border-radius:4px; border:1px solid var(--line); }
-  .awaiting_review { border-color:var(--acc); color:var(--acc); }
-  .done { opacity:.55; } .failed { border-color:#dc2626; color:#dc2626; }
-  .draft { white-space:pre-wrap; margin:8px 0; padding:8px 10px; border-left:2px solid var(--acc);
-           background:var(--bg); border-radius:0 4px 4px 0; }
-  button { font:inherit; padding:4px 11px; border:1px solid var(--line); border-radius:5px;
-           background:var(--bg); color:var(--fg); cursor:pointer; }
-  button:hover { border-color:var(--acc); } button:disabled { opacity:.4; cursor:default; }
-  .primary { background:var(--acc); color:#fff; border-color:var(--acc); }
-  #log { margin-top:22px; border-top:1px solid var(--line); padding-top:10px; }
-  #log div { font-size:12px; color:var(--mut); font-family:ui-monospace,monospace; }
-  #toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#dc2626;
-           color:#fff; padding:8px 15px; border-radius:6px; font-size:13px; display:none; }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0e1013; --panel:#16191e; --fg:#e8eaed; --mut:#98a0ab; --faint:#767e89;
+      --line:#262b33; --line-2:#1e232a;
+      --acc:#7e96ff; --acc-fg:#0e1013; --acc-soft:#1a2036;
+      --ok:#5ed6a8; --ok-soft:#10251e;
+      --warn:#e8b25c; --warn-soft:#2a2113;
+      --bad:#ff8b7e; --bad-soft:#2d1714;
+      --shadow:0 1px 2px #0006, 0 6px 18px #0005;
+    }
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:var(--bg); color:var(--fg); padding:0 0 64px;
+    font:15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:940px; margin:0 auto; padding:0 16px; }
+
+  /* ── header ─────────────────────────────────────────────── */
+  header { position:sticky; top:0; z-index:10; background:var(--panel);
+           border-bottom:1px solid var(--line); margin-bottom:22px; }
+  .head-row { display:flex; align-items:flex-start; gap:14px; padding:18px 0 12px; flex-wrap:wrap; }
+  h1 { font-size:19px; font-weight:640; letter-spacing:-.015em; line-height:1.3; flex:1 1 320px; }
+  .head-actions { display:flex; gap:8px; flex:0 0 auto; }
+
+  .meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+          padding-bottom:13px; font-size:13px; color:var(--mut); }
+  .dot-sep { width:3px; height:3px; border-radius:50%; background:var(--faint); flex:0 0 auto; }
+
+  .pill { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:560;
+          padding:3px 9px; border-radius:99px; }
+  .pill.running { background:var(--ok-soft); color:var(--ok); }
+  .pill.paused  { background:var(--warn-soft); color:var(--warn); }
+  .pill .blip { width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill.running .blip { animation:pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  .who { display:inline-flex; align-items:center; gap:6px; }
+  .av { width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+        font-size:10px; font-weight:680; flex:0 0 auto;
+        background:var(--line); color:var(--mut); border:1px solid var(--line); }
+  .av.me { background:var(--acc); color:var(--acc-fg); border-color:var(--acc); }
+  .av.bot { background:var(--acc-soft); color:var(--acc); border-color:transparent; }
+
+  .bar { height:3px; background:var(--line-2); }
+  .bar i { display:block; height:100%; width:0; background:var(--acc);
+           transition:width .45s cubic-bezier(.4,0,.2,1); }
+
+  .note { font-size:12.5px; color:var(--warn); background:var(--warn-soft);
+          border-radius:8px; padding:8px 12px; margin-bottom:16px; }
+
+  /* ── cards ──────────────────────────────────────────────── */
+  .task { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+          padding:14px 16px; margin-bottom:10px; box-shadow:var(--shadow);
+          transition:border-color .15s, opacity .2s; }
+  .task.awaiting_review { border-color:var(--acc); }
+  .task.done { opacity:.6; }
+  .task.failed { border-color:var(--bad); }
+
+  .top { display:flex; align-items:center; gap:11px; }
+  .top > .av { width:32px; height:32px; font-size:12px;
+               background:var(--acc-soft); color:var(--acc); border-color:transparent; }
+  .idy { min-width:0; flex:1; }
+  .nm { font-weight:600; letter-spacing:-.01em; }
+  .sub { font-size:13px; color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .badge { font-size:10.5px; font-weight:660; letter-spacing:.06em; text-transform:uppercase;
+           padding:3px 8px; border-radius:6px; flex:0 0 auto;
+           background:var(--line-2); color:var(--mut); }
+  .badge.awaiting_review { background:var(--acc-soft); color:var(--acc); }
+  .badge.approved { background:var(--ok-soft); color:var(--ok); }
+  .badge.edited   { background:var(--acc-soft); color:var(--acc); }
+  .badge.failed   { background:var(--bad-soft); color:var(--bad); }
+
+  .headline { font-size:13px; color:var(--mut); margin-top:9px; }
+  .li { font-size:12.5px; color:var(--faint); margin-top:3px; }
+  .draft { white-space:pre-wrap; margin-top:11px; padding:11px 13px; font-size:14px;
+           background:var(--bg); border:1px solid var(--line-2);
+           border-left:3px solid var(--acc); border-radius:0 8px 8px 0; }
+  .err { font-size:12.5px; color:var(--bad); margin-top:8px; }
+
+  .acts { display:flex; align-items:center; gap:7px; margin-top:12px; flex-wrap:wrap; }
+  .held { font-size:12px; color:var(--mut); display:inline-flex; align-items:center; gap:5px; }
+  .working { font-size:13px; color:var(--mut); display:inline-flex; align-items:center; gap:7px; }
+  .spin { width:11px; height:11px; border:2px solid var(--line); border-top-color:var(--acc);
+          border-radius:50%; animation:spin .7s linear infinite; flex:0 0 auto; }
+  @keyframes spin { to { transform:rotate(360deg) } }
+
+  button { font:inherit; font-size:13px; font-weight:520; padding:6px 12px; cursor:pointer;
+           border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--fg);
+           transition:background .13s, border-color .13s, transform .05s; }
+  button:hover:not(:disabled) { border-color:var(--acc); background:var(--acc-soft); }
+  button:active:not(:disabled) { transform:translateY(1px); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+  button.primary { background:var(--acc); border-color:var(--acc); color:var(--acc-fg); }
+  button.primary:hover:not(:disabled) { filter:brightness(1.08); background:var(--acc); }
+  button.ghost { border-color:transparent; color:var(--mut); }
+  button.ghost:hover:not(:disabled) { color:var(--fg); }
+
+  .empty { text-align:center; color:var(--mut); padding:56px 0; font-size:14px; }
+  .empty .spin { margin:0 auto 12px; width:18px; height:18px; }
+
+  /* ── activity ───────────────────────────────────────────── */
+  details { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
+  summary { cursor:pointer; font-size:13px; color:var(--mut); font-weight:540; list-style:none; }
+  summary::-webkit-details-marker { display:none; }
+  summary::before { content:'▸ '; }
+  details[open] summary::before { content:'▾ '; }
+  .feed { margin-top:11px; display:grid; gap:2px; max-height:260px; overflow:auto; }
+  .ev { font:12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--mut); display:flex; gap:9px; }
+  .ev b { color:var(--fg); font-weight:560; min-width:50px; }
+  .ev .t { color:var(--faint); min-width:64px; }
+
+  #toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(8px);
+           background:var(--bad); color:#fff; padding:10px 17px; border-radius:9px;
+           font-size:13.5px; font-weight:520; box-shadow:0 8px 28px #0004;
+           opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:50; }
+  #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 
 <header>
-  <h1 id="obj">loading…</h1>
-  <span class="who" id="who"></span>
-  <span class="mut" id="status"></span>
-  <span style="flex:1"></span>
-  <button id="fresh">New room</button>
-  <button id="pause"></button>
+  <div class="wrap">
+    <div class="head-row">
+      <h1 id="obj">Loading…</h1>
+      <div class="head-actions">
+        <button id="fresh">New room</button>
+        <button id="pause" class="ghost"></button>
+      </div>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="bar"><i id="prog"></i></div>
 </header>
-<div id="tasks"></div>
-<div id="log"></div>
+
+<main class="wrap">
+  <div class="note" id="replay" hidden></div>
+  <div id="tasks"></div>
+  <details>
+    <summary id="log-count">Activity</summary>
+    <div class="feed" id="log"></div>
+  </details>
+</main>
+
 <div id="toast"></div>
 
 <script>
 const qs    = new URLSearchParams(location.search);
 const actor = qs.get('user') || 'alice';
 let roomId  = qs.get('room');
-document.getElementById('who').textContent = actor;
+let lastReplay = false;
 
-const toast = (m) => {
-  const t = document.getElementById('toast');
-  t.textContent = m; t.style.display = 'block';
-  clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 3500);
-};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+const initials = (n) =>
+  String(n || '?').split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase();
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('on'), 3600);
+}
 
 async function act(taskId, action, version, note) {
   const r = await fetch(`/api/tasks/${taskId}/${action}`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ actor, version, note }),
   });
-  // 409 is the expected outcome when the other human won, not an error to hide.
+  // A 409 is the expected outcome when the other human won the race, not an error to hide.
   if (!r.ok) toast((await r.json()).error);
   refresh();
 }
 
-function render({ room, tasks, events }) {
-  document.getElementById('obj').textContent = room.objective;
-  const done = tasks.filter((t) => t.state === 'done').length;
-  const roster = (room.members ?? []).map((m) =>
-    m.kind === 'agent' ? '🤖 agent' : (m.name === actor ? `${m.name} (you)` : m.name)).join(' · ');
-  document.getElementById('status').textContent =
-    `${done}/${tasks.length} decided · room ${room.status} · ${roster}` +
-    (room.last_error ? ` · ${room.last_error}` : '');
+function render({ room, tasks, events, replay }) {
+  lastReplay = !!replay;
+  $('obj').textContent = room.objective;
 
-  const pause = document.getElementById('pause');
+  const decided = tasks.filter((t) => t.state === 'done').length;
+  $('prog').style.width = `${tasks.length ? (decided / tasks.length) * 100 : 0}%`;
+
+  const members = (room.members ?? []).map((m) => m.kind === 'agent'
+    ? `<span class="who"><i class="av bot">AI</i>agent</span>`
+    : `<span class="who"><i class="av ${m.name === actor ? 'me' : ''}">${esc(initials(m.name))}</i>` +
+      `${esc(m.name)}${m.name === actor ? ' (you)' : ''}</span>`
+  ).join('<i class="dot-sep"></i>');
+
+  $('meta').innerHTML =
+    `<span class="pill ${room.status}"><i class="blip"></i>${esc(room.status)}</span>` +
+    `<i class="dot-sep"></i><span><b>${decided}</b> of ${tasks.length} decided</span>` +
+    `<i class="dot-sep"></i>${members}`;
+
+  const banner = $('replay');
+  banner.hidden = !replay;
+  banner.textContent = 'Replaying recorded Apollo data — the same 10 prospects come back '
+    + 'whatever ICP you enter. Run it with an Apollo key for a live search.';
+
+  const pause = $('pause');
   pause.textContent = room.status === 'running' ? 'Pause room' : 'Resume room';
   pause.onclick = async () => {
     await fetch(`/api/rooms/${room.id}/pause`, {
@@ -86,69 +221,93 @@ function render({ room, tasks, events }) {
     refresh();
   };
 
-  document.getElementById('tasks').innerHTML = tasks.map((t) => {
+  $('tasks').innerHTML = tasks.length ? tasks.map((t) => {
     const p = t.enrichment || {};
     const name = p.name || t.person?.first_name || t.person_key;
-    const org  = p.organization?.name || t.person?.organization?.name || '';
+    const org = p.organization?.name || t.person?.organization?.name || '';
     const mine = t.claimed_by === actor;
     const held = t.claimed_by && !mine;
-    const v    = t.version;
+    const v = t.version;
 
-    const btn = (label, action, cls = '') =>
-      `<button class="${cls}" ${held ? 'disabled' : ''}
-        onclick="act('${t.id}','${action}',${v})">${label}</button>`;
+    const btn = (text, action, cls = '') =>
+      `<button class="${cls}" data-action="${action}" ${held ? 'disabled' : ''}
+        onclick="act('${t.id}','${action}',${v})">${text}</button>`;
 
-    let controls = '';
+    let acts = '';
     if (t.state === 'awaiting_review') {
-      controls = btn('Approve', 'approve', 'primary') + btn('Skip', 'skip') +
-        `<button ${held ? 'disabled' : ''} onclick="
-           const n = prompt('Edit the note', this.closest('.task').querySelector('.draft').textContent.trim());
-           if (n) act('${t.id}','edit',${v},n)">Edit</button>` +
-        btn('Hand back to agent', 'handback');
+      acts = btn('Approve', 'approve', 'primary') + btn('Skip', 'skip') +
+        `<button data-action="edit" ${held ? 'disabled' : ''} onclick="
+          const d = this.closest('.task').querySelector('.draft');
+          const n = prompt('Edit the note before it is sent', d ? d.textContent.trim() : '');
+          if (n) act('${t.id}','edit',${v},n)">Edit</button>` +
+        btn('Hand back', 'handback', 'ghost');
     } else if (t.state !== 'done' && t.state !== 'failed') {
-      controls = `<span class="mut">agent working…</span>`;
+      acts = `<span class="working"><i class="spin"></i>agent working…</span>`;
     }
     if (t.state !== 'done' && t.state !== 'failed')
-      controls += mine ? btn('Release', 'release') : btn('Claim', 'claim');
+      acts += mine ? btn('Release', 'release', 'ghost') : btn('Claim', 'claim', 'ghost');
 
-    return `<div class="task ${t.state}">
-      <div class="row">
-        <strong>${name}</strong><span class="mut">${p.title || ''} ${org ? '· ' + org : ''}</span>
-        <span style="flex:1"></span>
-        <span class="state ${t.state}">${t.decision || t.state.replace(/_/g, ' ')}</span>
+    return `<article class="task ${t.state}">
+      <div class="top">
+        <i class="av">${esc(initials(name))}</i>
+        <div class="idy">
+          <div class="nm">${esc(name)}</div>
+          <div class="sub">${esc(p.title || '')}${org ? ' · ' + esc(org) : ''}</div>
+        </div>
+        <span class="badge ${esc(t.decision || t.state)}">${esc(t.decision || t.state.replace(/_/g, ' '))}</span>
       </div>
-      ${p.headline ? `<div class="mut">${p.headline.slice(0, 150)}</div>` : ''}
-      ${t.linkedin_headline ? `<div class="mut">LinkedIn: ${t.linkedin_headline}</div>` : ''}
-      ${t.draft ? `<div class="draft">${t.draft}</div>` : ''}
-      ${t.last_error ? `<div class="mut">⚠ ${t.last_error} (attempt ${t.attempts})</div>` : ''}
-      <div class="row">${controls}
-        ${t.claimed_by ? `<span class="mut">held by ${t.claimed_by}</span>` : ''}</div>
-    </div>`;
-  }).join('') || '<p class="mut">agent is searching Apollo…</p>';
+      ${p.headline ? `<p class="headline">${esc(p.headline.slice(0, 160))}</p>` : ''}
+      ${t.linkedin_headline ? `<p class="li">LinkedIn · ${esc(t.linkedin_headline.slice(0, 120))}</p>` : ''}
+      ${t.draft ? `<div class="draft">${esc(t.draft)}</div>` : ''}
+      ${t.last_error ? `<p class="err">⚠ ${esc(t.last_error)} (attempt ${t.attempts})</p>` : ''}
+      <div class="acts">${acts}
+        ${t.claimed_by ? `<span class="held"><i class="av">${esc(initials(t.claimed_by))}</i>held by ${esc(t.claimed_by)}</span>` : ''}
+      </div>
+    </article>`;
+  }).join('') : `<div class="empty"><div class="spin"></div>the agent is searching Apollo…</div>`;
 
-  document.getElementById('log').innerHTML = events.map((e) =>
-    `<div>${new Date(e.created_at).toLocaleTimeString()} · ${e.actor} · ${e.type}
-     ${e.data?.error ? '· ' + e.data.error : ''}</div>`).join('');
+  $('log-count').textContent = `Activity — ${events.length} event${events.length === 1 ? '' : 's'}`;
+  $('log').innerHTML = events.map((e) =>
+    `<div class="ev"><span class="t">${new Date(e.created_at).toLocaleTimeString()}</span>` +
+    `<b>${esc(e.actor)}</b><span>${esc(e.type.replace(/_/g, ' '))}` +
+    `${e.data?.error ? ' · ' + esc(e.data.error) : ''}</span></div>`).join('');
 }
+
+// A room is an objective plus an ICP, so asking for both is the honest version of this
+// button — it goes through the same POST /api/rooms any client would use. There is no auth
+// here by design, so on a public demo this doubles as the reset: anyone can put it back to
+// a clean state rather than nobody being able to touch it.
+$('fresh').onclick = async () => {
+  const objective = prompt('What is this room trying to achieve?',
+    'Book 5 discovery calls with engineering leaders at AI infra startups');
+  if (!objective) return;
+
+  const icp = prompt(
+    lastReplay
+      ? 'Describe the people to target.\n\nNote: this deployment replays recorded Apollo data, '
+        + 'so the same 10 prospects come back whatever you type. Run it with an Apollo key for a real search.'
+      : 'Describe the people to target — plain English is fine.',
+    'VP of Engineering or CTO at US-based B2B software companies');
+  if (!icp) return;
+
+  const r = await fetch('/api/rooms', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ objective, icp, members: ['alice', 'bob'] }),
+  });
+  if (!r.ok) return toast((await r.json()).error ?? 'could not create the room');
+  const room = await r.json();
+  location.search = `?room=${room.id}&user=${actor}`;
+};
 
 async function refresh() {
   if (!roomId) {
     const rooms = await (await fetch('/api/rooms')).json();
-    if (!rooms.length) return (document.getElementById('obj').textContent = 'no rooms — run: npm run seed');
+    if (!rooms.length) { $('obj').textContent = 'No rooms yet — run: npm run seed'; return; }
     roomId = rooms[0].id;
   }
   const r = await fetch(`/api/rooms/${roomId}`);
   if (r.ok) render(await r.json());
 }
-// There is no auth here by design, so on a public demo the honest defence is that anyone
-// can put it back to a clean state rather than that nobody can touch it.
-document.getElementById('fresh').onclick = async () => {
-  const r = await fetch('/api/demo/reset', { method: 'POST' });
-  if (!r.ok) return toast('could not start a new room');
-  const room = await r.json();
-  location.search = `?room=${room.id}&user=${actor}`;
-};
-
 refresh();
 setInterval(refresh, 1000);
 </script>

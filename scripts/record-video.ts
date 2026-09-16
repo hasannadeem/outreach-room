@@ -68,13 +68,14 @@ const run = (fn, ...args) => page.evaluate(fn, ...args);
  * detached — silently doing nothing. Querying and clicking in the same synchronous tick
  * closes that window entirely: the re-render is a separate task and cannot interleave.
  */
-const click = (frame, sel) => frame.locator('body').evaluate((_body, s) => {
-  const el = document.querySelector(s);
-  if (!el) throw new Error(`no element matched ${s}`);
-  if (el.disabled) throw new Error(`element is disabled: ${s}`);
-  el.click();
-  return el.textContent.trim();
-}, sel);
+const click = (frame: ReturnType<typeof page.frameLocator>, sel: string) =>
+  frame.locator('body').evaluate((_body, s: string) => {
+    const el = document.querySelector(s) as HTMLButtonElement | null;
+    if (!el) throw new Error(`no element matched ${s}`);
+    if (el.disabled) throw new Error(`element is disabled: ${s}`);
+    el.click();
+    return el.textContent?.trim() ?? '';
+  }, sel);
 
 /**
  * A video that narrates an action which never happened is worse than no video. Every
@@ -148,7 +149,7 @@ await run(() => stage.callout(null));
 // bob claims the first task, for real, inside the live iframe
 const bob = page.frameLocator('#fb');
 const alice = page.frameLocator('#fa');
-await click(bob, '#tasks .task:nth-child(1) .row:last-of-type button:last-of-type');
+await click(bob, '#tasks .task:nth-child(1) [data-action="claim"]');
 await expectEvent('bob', 'claim');
 await beat(1600);
 await run(() => stage.callout('bob clicked <b>Claim</b> — watch alice\'s buttons on the left.'));
@@ -178,7 +179,7 @@ await run(() => stage.callout(null));
 
 // 6 ── approve / edit ---------------------------------------------------------
 await run(() => stage.bar('04', 'Approve, edit, skip, hand back.', 'The human half of the loop'));
-await click(alice, '#tasks .task:nth-child(2) .row:last-of-type button:first-of-type');
+await click(alice, '#tasks .task:nth-child(2) [data-action="approve"]');
 await expectEvent('alice', 'approve');
 await beat(1500);
 await run(() => stage.callout('alice <b>approved</b> the second note — decision recorded in Postgres.'));
@@ -187,7 +188,7 @@ await beat(3500);
 page.once('dialog', async (d) => {
   await d.accept("Ludovic, your work on digital transformation at Groupe Nice-Matin stood out.\nWe help AI infra teams book discovery calls — worth 15 minutes?");
 });
-await click(alice, '#tasks .task:nth-child(3) .row:last-of-type button:nth-of-type(3)');
+await click(alice, '#tasks .task:nth-child(3) [data-action="edit"]');
 await expectEvent('alice', 'edit');
 await beat(1800);
 await run(() => stage.callout(

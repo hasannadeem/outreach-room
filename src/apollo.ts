@@ -29,7 +29,10 @@ const replay = async <T>(value: T): Promise<T> => {
   return value;
 };
 
-if (USE_FIXTURES && !process.env.APOLLO_BASE_URL)
+/** True when search results come from the recorded fixtures rather than live Apollo. */
+export const usingFixtures = (): boolean => USE_FIXTURES && !process.env.APOLLO_BASE_URL;
+
+if (usingFixtures())
   console.log('[apollo] no APOLLO_API_KEY — replaying recorded fixtures (set one for live data)');
 
 export class ApolloError extends Error {

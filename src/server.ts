@@ -8,6 +8,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { pool, q, tx, logEvent } from './db.ts';
+import { usingFixtures } from './apollo.ts';
 import type { MemberKind, Room, RoomMember, Task } from './types.ts';
 
 const app = express();
@@ -81,7 +82,9 @@ app.get('/api/rooms/:id', async (req: Request, res: Response) => {
     q(`select id, task_id, actor, type, data, created_at from events
        where room_id = $1 order by id desc limit 50`, [roomId]),
   ]);
-  res.json({ room: { ...room, members }, tasks, events });
+  // The UI says so on screen: in replay mode the prospect list is fixed, so a custom ICP
+  // would not change who comes back. Better to state that than to let it look like search.
+  res.json({ room: { ...room, members }, tasks, events, replay: usingFixtures() });
 });
 
 app.post('/api/rooms/:id/pause', async (req: Request, res: Response) => {
