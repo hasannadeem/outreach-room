@@ -37,19 +37,33 @@ all on an outbound project.
 
 Then `npm start` + `npm run worker` + `npm run seed` for the room itself.
 
-## Walkthrough video
+## Walkthrough video — 2:51
 
-`playwright-out/walkthrough.mp4` — ~3 minutes, annotated, no narration needed.
+[![Watch the walkthrough](docs/walkthrough-poster.jpg)](https://github.com/hasannadeem/outreach-room/raw/main/docs/walkthrough.mp4)
+
+**▶ [Play it](https://github.com/hasannadeem/outreach-room/raw/main/docs/walkthrough.mp4)** (click the image, or open [`docs/walkthrough.mp4`](docs/walkthrough.mp4)). Annotated throughout — no narration, nothing to install.
+
+| | |
+|---|---|
+| 0:13 | One command, no API keys |
+| 0:26 | Kill it mid-run, restart, nothing redone |
+| 0:44 | Why this is at-least-once execution, at-most-once commit |
+| 0:56 | Two humans race — the 409, live in two browsers |
+| 1:28 | Approve and edit |
+| 1:58 | Pause the whole room |
+| 2:05 | The guarantees attacked: repeated kills, 4 workers, human vs agent |
+| 2:20 | Stretch: a real browser on LinkedIn |
+| 2:35 | What I would change for production |
 
 Nothing in it is a mock-up. The terminal panes replay output captured verbatim from real
 runs (`demo/*.txt`), and the two browser panes are live iframes of the running app being
-clicked for real. Playwright records the session in one take:
+clicked for real — the recorder verifies every interaction against the event log and aborts
+if one did not land, so it cannot narrate something that did not happen.
 
 ```bash
 npm start & npm run worker & npm run seed     # a room with tasks to review
 npm run record                                 # → playwright-out/walkthrough.mp4
 VIDEO_PACE=1 npm run record                    # faster cut (~85s)
-VIDEO_REPO_URL=github.com/you/repo npm run record   # show a repo URL on the closing card
 ```
 
 ## Prerequisites
