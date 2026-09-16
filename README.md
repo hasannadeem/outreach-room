@@ -80,7 +80,7 @@ open http://localhost:3000
 ```
 
 No credentials required: with no `APOLLO_API_KEY` the app replays `fixtures/apollo.json`,
-and the agent falls back to its deterministic drafting path with no `ANTHROPIC_API_KEY`.
+and the agent falls back to its deterministic drafting path with no model provider set.
 Both are passed through when set. Verified from cold: 10 prospects searched, enriched,
 drafted and sitting at `awaiting_review` **three seconds** after the room was created.
 
@@ -127,7 +127,8 @@ request instead — but Render maps to the real architecture without the adapter
 | Node 20 | TypeScript runs through `tsx`; no build step, no dotenv dependency |
 | Docker | only to run Postgres; any Postgres 14+ works if you'd rather point `DATABASE_URL` at your own |
 | Apollo API key | **optional** — without one the client replays `fixtures/apollo.json`. For live data the free tier is enough; the endpoints used are `mixed_people/api_search` and `people/match` |
-| `ANTHROPIC_API_KEY` | **optional.** Without it the agent still runs — see [The agent's two LLM calls](#the-agents-two-llm-calls) |
+| `ANTHROPIC_API_KEY` | **optional** — the first provider tried. Anthropic, OpenRouter or neither all work; without any of them the agent still runs on its deterministic fallback. See [The agent's two LLM calls](#the-agents-two-llm-calls) |
+| `OPENROUTER_API_KEY` | **optional** — the second provider tried, used when no Anthropic credential is set. Free models work, with the caveats in [The agent's two LLM calls](#the-agents-two-llm-calls) |
 | Chromium | only for the LinkedIn stretch: `npx playwright install chromium` |
 
 ## Run it
@@ -384,18 +385,59 @@ are `ON CONFLICT (room_id, person_key) DO NOTHING` and commit in the same transa
 
 ### The agent's two LLM calls
 
-`parseIcp` turns free text into Apollo filters (structured output, `claude-opus-5`);
-`draftNote` writes the two-line note. **Both degrade to a deterministic fallback** if no
-Anthropic credential is present or the call fails, so the room completes with only an
-Apollo key. Which path ran is recorded in the step output as `via`, not hidden:
+Two calls, both optional. `parseIcp` turns the room's free-text ICP into Apollo search
+filters — schema-constrained, so the reply is filters and not prose. `draftNote` turns an
+enriched prospect into the two-line outreach note. **Both degrade to a deterministic
+fallback** if no provider is configured or the call fails, so the room completes with only
+an Apollo key.
+
+`src/llm.ts` is one interface in front of three providers, tried in this order, with
+`LLM_PROVIDER` overriding the choice:
+
+| provider | chosen when | how it is called |
+|---|---|---|
+| `anthropic` | `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set | `claude-opus-5`; JSON constrained with `output_config.format` |
+| `openrouter` | `OPENROUTER_API_KEY` is set | `nex-agi/nex-n2.5-pro:free` by default, `OPENROUTER_MODEL` to change; OpenAI-style `response_format.json_schema` |
+| `none` | neither is set | the call throws immediately and the caller falls back |
+
+The indirection earns its place because two providers are genuinely in use and constraining
+JSON is the part of the request that is not portable between them.
+
+**Which provider answered is recorded as `via`** — in the step output and in the event —
+so a draft is never silently credited to a model that never ran:
 
 ```
 [agent] searched: 10 people (icp via fallback (Could not resolve authentication method))
 ```
 
+It is in the ledger afterwards too, so "was this room actually written by a model" is a
+query rather than a guess:
+
+```sql
+select output->>'via' as via, count(*) from task_steps where step = 'draft' group by 1;
+```
+
+**The free tier is rougher than the model list suggests.** Free OpenRouter models are
+frequently rate-limited or overloaded — 429 and 502 during ordinary use — and several
+advertise as free and then return an error on every request. All of them are reasoning
+models, so without `reasoning: {exclude: true}` the chain of thought comes back in
+`content` and the "note" arrives as paragraphs of the model counting its own words. That is
+why the provider layer sets that flag, why it retries at all, and why the fallback is not
+dead code.
+
+**Why this retries when the Apollo client does not.** §3 is still the rule: the Apollo
+client has no retry loop of its own, because the worker's `next_run_at` backoff survives
+`kill -9` and an in-process `setTimeout` does not. `complete()` is the deliberate exception
+— at most 3 attempts, only for transient 429/5xx, backing off ~600ms per attempt. The
+asymmetry is in what giving up costs. A failed Apollo call loses nothing: the task stays
+where it is and gets retried later. A failed model call degrades that draft to a template
+*permanently*, because the step commits either way and the ledger will never run it again.
+One retry is the difference between a model-written room and a half-templated one.
+
 The fallback ICP parser matches against a fixed title list, because Apollo's `q_keywords`
-returns zero results for a full sentence. It is a stand-in, not an extractor — with a key
-set, the LLM path is the real one and handles ICP descriptions the list has never seen.
+returns zero results for a full sentence. It is a stand-in, not an extractor — with a
+provider configured, the LLM path is the real one and handles ICP descriptions the list has
+never seen.
 
 ---
 
