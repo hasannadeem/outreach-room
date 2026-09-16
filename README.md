@@ -9,6 +9,10 @@ TypeScript on Node 20, Postgres, Express, Playwright, Vitest.
 There is no queue broker, no Redis, no Temporal. Postgres is the queue, the lock, and the
 idempotency ledger — see [Why this is only ~700 lines](#why-this-is-only-700-lines).
 
+**Live demo: https://outreach-room-production.up.railway.app**
+Open it in two tabs — `?user=alice` and `?user=bob` — and race each other for a task.
+There is no auth by design, so **New room** resets it if someone has left it in a state.
+
 ---
 
 ## Prove it in one command — no API keys needed
