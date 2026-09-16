@@ -8,7 +8,7 @@
  */
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
-import { pool, q, tx, logEvent } from '../src/db.js';
+import { pool, q, tx, logEvent } from '../src/db.ts';
 
 const { rows: [task] } = await q(`
   select t.* from tasks t
@@ -48,8 +48,8 @@ try {
 
     // 2. behind the sign-in modal the headline is still served in the page metadata,
     //    as "<headline> · Experience: ... · Education: ...". Same page, same browser.
-    const meta = document.querySelector(
-      'meta[property="og:description"], meta[name="description"]')?.content;
+    const meta = (document.querySelector(
+      'meta[property="og:description"], meta[name="description"]') as HTMLMetaElement | null)?.content;
     const fromMeta = clean(meta?.split(/\s·\s(?:Experience|Education|Location):/)[0]);
 
     return {
@@ -63,7 +63,7 @@ try {
     ? { status: 'ok', ...scraped, url }
     : { status: 'blocked', reason: 'auth wall, no headline in page', url, final_url: page.url() };
 } catch (e) {
-  result = { status: 'error', reason: e.message.slice(0, 200), url };
+  result = { status: 'error', reason: (e as Error).message.slice(0, 200), url };
 }
 
 const shot = `playwright-out/${task.person_key}.png`;

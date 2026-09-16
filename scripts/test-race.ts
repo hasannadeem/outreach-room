@@ -6,11 +6,12 @@
  * Requires the API to be running (npm start).
  */
 import assert from 'node:assert/strict';
-import { pool, q } from '../src/db.js';
+import { pool, q } from '../src/db.ts';
 
 const BASE = `http://localhost:${process.env.PORT || 3000}`;
 
-const act = (taskId, action, actor, version, note) =>
+const act = (taskId: string, action: string, actor: string,
+             version: number, note?: string) =>
   fetch(`${BASE}/api/tasks/${taskId}/${action}`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ actor, version, note }),

@@ -14,18 +14,29 @@
  */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+
+/**
+ * Spawn the worker as a direct child of this process.
+ *
+ * Going through `npx tsx` starts npx, which starts node as a *grandchild*: SIGKILL then
+ * kills the wrapper while the real worker keeps running, orphaning it. These suites kill
+ * workers constantly, so orphans accumulate and quietly corrupt later assertions.
+ * `node --import tsx` is one process, and signals reach it.
+ */
+const NODE = process.execPath;
+const TSX = ['--import', 'tsx'] as const;
 import { readFileSync } from 'node:fs';
-import { pool, q } from '../src/db.js';
+import { pool, q } from '../src/db.ts';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rand = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo));
-const count = async (sql, p) => Number((await q(sql, p)).rows[0].count);
+const count = async (sql: string, p?: unknown[]) => Number((await q(sql, p)).rows[0]!.count);
 
 // Always replay fixtures here, even when a live key is set: this suite restarts the worker
 // a dozen times and would otherwise burn real Apollo credits to test concurrency semantics
 // that have nothing to do with Apollo.
 const worker = (env = {}) =>
-  spawn('node', ['src/worker.js'],
+  spawn(NODE, [...TSX, 'src/worker.ts'],
     { stdio: 'ignore', env: { ...process.env, APOLLO_FIXTURES: '1', ...env } });
 
 /**
@@ -130,18 +141,25 @@ async function assertExactlyOnce(context) {
   await stop(w, 'SIGTERM');
 
   const { rows: [after] } = await q('select * from tasks where id = $1', [task.id]);
-  // Either order is correct; what must never happen is a torn row — claimed but with the
-  // agent's write lost, or enriched with the human's claim silently dropped.
+
+  // Which of the two got there first is genuinely undecided: the claim blocks on the row
+  // lock the agent holds, and when the agent commits it may win the next pickup before the
+  // claim commits. So 'pending_enrich', 'enriched' and 'awaiting_review' are all correct
+  // outcomes. What must never happen is an incoherent row — a claim that vanished, or a
+  // state that claims work the data does not show.
   assert.equal(claimed.rows.length, 1, 'the human claim should eventually land, not error');
   assert.equal(after.claimed_by, 'alice', 'the claim was lost');
-  assert.ok(['pending_enrich', 'enriched'].includes(after.state), `torn state: ${after.state}`);
-  if (after.state === 'enriched')
-    assert.ok(after.enrichment?.name, 'enriched state without enrichment data — torn write');
+  assert.ok(['pending_enrich', 'enriched', 'awaiting_review'].includes(after.state),
+    `unexpected state: ${after.state}`);
+  if (after.state !== 'pending_enrich')
+    assert.ok(after.enrichment?.name, `state ${after.state} without enrichment — torn write`);
+  if (after.state === 'awaiting_review')
+    assert.ok(after.draft, 'awaiting_review without a draft — torn write');
 
   const n = await count(
     `select count(*) from events where task_id = $1 and type = 'enriched'`, [task.id]);
   assert.ok(n <= 1, `agent committed ${n} enrich events for one task`);
-  console.log(`PASS  human claimed a task mid-step — claim held, state coherent ` +
+  console.log('PASS  human claimed a task mid-step — claim held, state coherent ' +
               `(${after.state}), no torn write`);
 }
 
@@ -149,27 +167,35 @@ async function assertExactlyOnce(context) {
 {
   await freshRoom('Chaos: claim lease');
   let w = worker();
-  const task = await waitFor(async () =>
-    (await q(`select * from tasks where state = 'pending_enrich' limit 1`)).rows[0],
+  await waitFor(async () => (await count('select count(*) from tasks')) >= 2,
     'the agent to create tasks');
   await stop(w);
 
-  // A human claims it, then walks away: lease already expired.
-  await q(`update tasks set claimed_by = 'ghost', claim_expires_at = now() - interval '1 minute'
-           where id = $1`, [task.id]);
-  // And one held by a live human, which must stay untouched.
-  const { rows: [held] } = await q(
-    `update tasks set claimed_by = 'alice', claim_expires_at = now() + interval '5 minutes'
-     where id <> $1 and state = 'pending_enrich' returning *`, [task.id]);
+  // Pin both tasks to a known state rather than depending on how far the worker got
+  // before it was killed — otherwise this section passes or fails on timing.
+  const { rows } = await q<{ id: string }>('select id from tasks order by created_at limit 2');
+  const abandoned = rows[0]!.id;
+  const activelyHeld = rows[1]!.id;
+  await q('delete from task_steps');
+  await q(`update tasks set state = 'pending_enrich', enrichment = null, next_run_at = now()`);
+
+  // One human claimed it and walked away: the lease has already expired.
+  await q(`update tasks set claimed_by = 'ghost',
+           claim_expires_at = now() - interval '1 minute' where id = $1`, [abandoned]);
+  // The other is held by someone still at their desk, and must be left alone.
+  await q(`update tasks set claimed_by = 'alice',
+           claim_expires_at = now() + interval '5 minutes' where id = $1`, [activelyHeld]);
 
   w = worker();
   await waitFor(async () =>
-    (await q(`select 1 from tasks where id = $1 and state <> 'pending_enrich'`, [task.id])).rows[0],
+    (await q(`select 1 from tasks where id = $1 and state <> 'pending_enrich'`,
+      [abandoned])).rows[0],
     'the agent to reclaim the expired lease');
   await stop(w);
 
-  const { rows: [still] } = await q('select * from tasks where id = $1', [held.id]);
-  assert.equal(still.state, 'pending_enrich', "the agent took a task a human actively holds");
+  const { rows: [live] } = await q<{ state: string }>(
+    'select state from tasks where id = $1', [activelyHeld]);
+  assert.equal(live!.state, 'pending_enrich', 'the agent took a task a human actively holds');
   console.log('PASS  expired claim reaped by the agent; a live claim left alone');
 }
 

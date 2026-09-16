@@ -2,17 +2,20 @@
   "name": "outreach-room",
   "type": "module",
   "scripts": {
-    "db": "docker compose up -d && node --env-file=.env scripts/migrate.js",
-    "demo": "node --env-file=.env scripts/demo.js",
-    "start": "node --env-file=.env src/server.js",
-    "worker": "node --env-file=.env src/worker.js",
-    "seed": "node --env-file=.env scripts/seed.js",
-    "linkedin": "node --env-file=.env scripts/linkedin.js",
-    "test:crash": "node --env-file=.env scripts/test-crash.js",
-    "test:race": "node --env-file=.env scripts/test-race.js",
-    "test:failures": "node --env-file=.env scripts/test-failures.js",
-    "test:chaos": "node --env-file=.env scripts/test-chaos.js",
-    "record": "node --env-file=.env scripts/record-video.js"
+    "db": "docker compose up -d && tsx scripts/migrate.ts",
+    "demo": "tsx scripts/demo.ts",
+    "start": "tsx src/server.ts",
+    "worker": "tsx src/worker.ts",
+    "seed": "tsx scripts/seed.ts",
+    "linkedin": "tsx scripts/linkedin.ts",
+    "record": "tsx scripts/record-video.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
+    "test": "vitest run",
+    "test:crash": "tsx scripts/test-crash.ts",
+    "test:race": "tsx scripts/test-race.ts",
+    "test:failures": "tsx scripts/test-failures.ts",
+    "test:chaos": "tsx scripts/test-chaos.ts",
+    "test:unit": "vitest run tests/prompt-injection.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
@@ -20,6 +23,12 @@
     "pg": "^8.23.0"
   },
   "devDependencies": {
-    "playwright": "^1.49.1"
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.3",
+    "@types/pg": "^8.23.1",
+    "playwright": "^1.49.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }

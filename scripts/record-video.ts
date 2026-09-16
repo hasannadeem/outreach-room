@@ -12,7 +12,7 @@
 import { chromium } from 'playwright';
 import { readFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { pool, q } from '../src/db.js';
+import { pool, q } from '../src/db.ts';
 
 const PORT = process.env.PORT || 3000;
 const OUT = 'playwright-out';
@@ -266,6 +266,7 @@ await beat(6000);
 // ── encode ───────────────────────────────────────────────────────────────────
 // Ask Playwright where it wrote the video rather than guessing from a directory listing.
 const video = page.video();
+if (!video) throw new Error('recording was not enabled on this context');
 const src = await video.path();
 await ctx.close();          // flushes and finalises the webm
 await browser.close();
@@ -296,5 +297,5 @@ try {
   console.log(`  session ${realSeconds.toFixed(0)}s → video ${out.toFixed(0)}s ` +
               `(timestamps scaled ${scale.toFixed(2)}x)`);
 } catch (e) {
-  console.log(`\nffmpeg step failed (${e.message.slice(0, 60)}) — raw webm at ${OUT}/walkthrough.webm`);
+  console.log(`\nffmpeg step failed (${(e as Error).message.slice(0, 60)}) — raw webm at ${OUT}/walkthrough.webm`);
 }

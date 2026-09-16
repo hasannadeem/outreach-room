@@ -11,3 +11,5 @@ const room = await res.json();
 if (!res.ok) { console.error(room); process.exit(1); }
 const base = `http://localhost:${process.env.PORT || 3000}/?room=${room.id}`;
 console.log(`room ${room.id}\n  alice: ${base}&user=alice\n  bob:   ${base}&user=bob`);
+
+export {};

@@ -52,24 +52,29 @@ const CITIES = [
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const hexId = (n) => (n + 1).toString().padStart(24, 'a');   // stable, obviously synthetic
 
-const raw = JSON.parse(readFileSync(IN, 'utf8'));
+interface RawFixtures {
+  recorded_at?: string;
+  search: Array<Record<string, any>>;
+  enrich: Record<string, Record<string, any>>;
+}
+const raw = JSON.parse(readFileSync(IN, 'utf8')) as RawFixtures;
 const realIds = raw.search.map((p) => p.id);
 
 /** real apollo id -> the synthetic persona that replaces it */
 const persona = new Map(realIds.map((id, i) => {
   const n = i % PEOPLE.length;
-  const [first, last, company, domain] = PEOPLE[n];
-  const [city, state, postal] = CITIES[n];
+  const [first, last, company, domain] = PEOPLE[n]!;
+  const [city, state, postal] = CITIES[n]!;
   return [id, {
     id: hexId(i), orgId: hexId(100 + i), first, last, company, domain, city, state, postal,
-    headline: HEADLINES[n],
+    headline: HEADLINES[n]!,
     email: `${first[0].toLowerCase()}${slug(last)}@${domain}`,
     linkedin: `http://www.linkedin.com/in/${slug(first + '-' + last)}`,
   }];
 }));
 
 /** Replace an organization block in place, keeping firmographics. */
-function scrubOrg(org, p) {
+function scrubOrg(org: Record<string, any> | undefined, p: any) {
   if (!org) return org;
   return {
     ...org,
@@ -92,7 +97,7 @@ const out = {
         'then every identifying field was replaced — see scripts/anonymize-fixtures.js. ' +
         'Nobody in this file is a real person.',
   search: raw.search.map((row) => {
-    const p = persona.get(row.id);
+    const p = persona.get(row.id)!;   // built from these exact ids above
     return {
       ...row,
       id: p.id,
@@ -102,7 +107,7 @@ const out = {
     };
   }),
   enrich: Object.fromEntries(Object.entries(raw.enrich).map(([realId, person]) => {
-    const p = persona.get(realId);
+    const p = persona.get(realId)!;   // built from these exact ids above
     return [p.id, {
       ...person,
       id: p.id,
@@ -122,7 +127,7 @@ const out = {
       employment_history: (person.employment_history ?? []).map((job, j) => ({
         ...job,
         organization_id: j === 0 ? p.orgId : hexId(200 + j),
-        organization_name: j === 0 ? p.company : `${PEOPLE[(j * 3) % PEOPLE.length][2]}`,
+        organization_name: j === 0 ? p.company : `${PEOPLE[(j * 3) % PEOPLE.length]![2]}`,
         emails: null,
         raw_address: null,
       })),

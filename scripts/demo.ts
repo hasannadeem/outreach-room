@@ -6,7 +6,18 @@
  * client replays recorded fixtures.
  */
 import { spawn } from 'node:child_process';
-import { pool } from '../src/db.js';
+
+/**
+ * Spawn the worker as a direct child of this process.
+ *
+ * Going through `npx tsx` starts npx, which starts node as a *grandchild*: SIGKILL then
+ * kills the wrapper while the real worker keeps running, orphaning it. These suites kill
+ * workers constantly, so orphans accumulate and quietly corrupt later assertions.
+ * `node --import tsx` is one process, and signals reach it.
+ */
+const NODE = process.execPath;
+const TSX = ['--import', 'tsx'] as const;
+import { pool } from '../src/db.ts';
 
 const B = (s) => `\x1b[1m${s}\x1b[0m`;
 const GREEN = (s) => `\x1b[32m${s}\x1b[0m`;
@@ -27,8 +38,8 @@ const SUITES = [
          '      and a human racing the agent mid-step.' },
 ];
 
-const run = (file) => new Promise((resolve) => {
-  const p = spawn('node', [file], { stdio: 'inherit', env: process.env });
+const run = (file: string) => new Promise<boolean>((resolve) => {
+  const p = spawn(NODE, [...TSX, file], { stdio: 'inherit', env: process.env });
   p.on('exit', (code) => resolve(code === 0));
 });
 
@@ -47,7 +58,7 @@ try {
 // test-race.js talks to the API over HTTP, so bring one up for the duration.
 // Poll for readiness rather than sleeping a fixed time — a fixed sleep is a flake waiting
 // to happen on a slower machine, and the first run is the one that has to work.
-const api = spawn('node', ['src/server.js'], { stdio: 'ignore', env: process.env });
+const api = spawn(NODE, [...TSX, 'src/server.ts'], { stdio: 'ignore', env: process.env });
 const port = process.env.PORT || 3000;
 let ready = false;
 for (let i = 0; i < 60 && !ready; i++) {
@@ -60,7 +71,7 @@ if (!ready) {
   process.exit(1);
 }
 
-const results = [];
+const results: Array<{ req: string; ok: boolean }> = [];
 for (const { file, req } of SUITES) {
   console.log(`\n${B('─'.repeat(72))}`);
   console.log(B(`  ${req}`));
