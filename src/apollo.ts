@@ -6,7 +6,10 @@
 import { readFileSync } from 'node:fs';
 import type { ApolloPerson, ApolloSearchPerson, IcpParams } from './types.ts';
 
-const BASE = process.env.APOLLO_BASE_URL ?? 'https://api.apollo.io/api/v1';
+// `||`, not `??`: an APOLLO_BASE_URL that is set but empty (easy to do in a compose or CI
+// env block) would otherwise become the base URL and every request would fail on a
+// malformed address. Empty means "not configured".
+const BASE = process.env.APOLLO_BASE_URL || 'https://api.apollo.io/api/v1';
 
 /**
  * Replay mode. Real Apollo responses recorded once into fixtures/apollo.json, so the whole
