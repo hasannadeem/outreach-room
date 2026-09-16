@@ -1,0 +1,25 @@
+{
+  "name": "outreach-room",
+  "type": "module",
+  "scripts": {
+    "db": "docker compose up -d && node --env-file=.env scripts/migrate.js",
+    "demo": "node --env-file=.env scripts/demo.js",
+    "start": "node --env-file=.env src/server.js",
+    "worker": "node --env-file=.env src/worker.js",
+    "seed": "node --env-file=.env scripts/seed.js",
+    "linkedin": "node --env-file=.env scripts/linkedin.js",
+    "test:crash": "node --env-file=.env scripts/test-crash.js",
+    "test:race": "node --env-file=.env scripts/test-race.js",
+    "test:failures": "node --env-file=.env scripts/test-failures.js",
+    "test:chaos": "node --env-file=.env scripts/test-chaos.js",
+    "record": "node --env-file=.env scripts/record-video.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
+    "express": "^4.22.3",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}

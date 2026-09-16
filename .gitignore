@@ -1,0 +1,11 @@
+node_modules
+.env
+dist
+
+# Captured live from Apollo — contains real people's emails, addresses and photos.
+# The committed fixture (fixtures/apollo.json) is synthetic; see scripts/anonymize-fixtures.js.
+fixtures/apollo.raw.json
+
+# Recordings, screenshots and scratch output
+playwright-out
+.playwright-mcp
